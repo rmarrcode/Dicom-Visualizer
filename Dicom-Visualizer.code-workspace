@@ -1,9 +1,6 @@
 {
 	"folders": [
 		{
-			"path": "../../Desktop/Dicom-Viewer-master"
-		},
-		{
 			"name": "Dicom-Visualizer",
 			"path": "."
 		}
