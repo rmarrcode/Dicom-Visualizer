@@ -16,6 +16,7 @@ import plotly
 from plotly.graph_objs import *
 import chart_studio.plotly as py
 from GK import * 
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 #takes a pathname opens dicom files 
 def load_scan(path):
@@ -62,11 +63,30 @@ def largest_label_volume(im, bg=-1):
     else:
         return None
 
+def plot_3d(image):
+    p = image.transpose(2,1,0)
+    verts, faces, _, _ = measure.marching_cubes_lewiner(p)
+
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111, projection='3d')
+
+    mesh = Poly3DCollection(verts[faces], alpha=.7)
+    face_color = [0.45, 0.45, 0.75]
+    mesh.set_facecolor(face_color)
+    ax.add_collection3d(mesh)
+
+    ax.set_xlim(0, p.shape[0])
+    ax.set_ylim(0, p.shape[1])
+    ax.set_zlim(0, p.shape[2])
+
+    plt.show()
+
 #produces a binary mask for a lung
 #change constant
 def segment_lung_mask(image, fill_lung_structures=True):
     # not actually binary, but 1 and 2. 
     # 0 is treated as background, which we do not want
+    #-700
     binary_image = np.array(image >= -700, dtype=np.int8)+1
     labels = measure.label(binary_image)
  
@@ -113,7 +133,6 @@ def main():
     segmented_lungs = segment_lung_mask(patient_pixels, fill_lung_structures=False)    
     segmented_lungs_fill = segment_lung_mask(patient_pixels, fill_lung_structures=True)
         
-    internal_structures = segmented_lungs_fill - segmented_lungs
     copied_pixels = copy.deepcopy(patient_pixels)
     for i, mask in enumerate(segmented_lungs_fill): 
         #find where not lungs are found
@@ -125,9 +144,10 @@ def main():
     #plt.imshow(seg_lung_pixels[15], cmap=plt.cm.bone)
     #plt.show()
 
-    selected_slices = seg_lung_pixels[0]
-    gk_clustered_imgs = np.array([gk_segment(x) for x in selected_slices])   
-    plt.imshow(gk_clustered_imgs[0], cmap=plt.cm.bone)
+    #selected_slices = seg_lung_pixels[0]
+    #gk_clustered_imgs = np.array([gk_segment(x) for x in selected_slices])   
+    #plt.imshow(gk_clustered_imgs[0], cmap=plt.cm.bone)
+    plot_3d(segmented_lungs_fill)
 
 if __name__ == "__main__":
     main()
