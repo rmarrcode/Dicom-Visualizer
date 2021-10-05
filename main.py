@@ -17,11 +17,13 @@ from plotly.graph_objs import *
 import chart_studio.plotly as py
 from GK import * 
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from PIL import Image
+import numpy
 
 #takes a pathname opens dicom files 
 def load_scan(path):
     #get all slices as pydicom array
-    slices = [pydicom.dcmread(path + '/' + s) for s in               
+    slices = [pydicom.dcmread(path + '/' + s, force = True) for s in               
               os.listdir(path)]
     slices = [s for s in slices if 'SliceLocation' in s]
     slices.sort(key = lambda x: int(x.InstanceNumber))
@@ -71,14 +73,14 @@ def plot_3d(image):
     ax = fig.add_subplot(111, projection='3d')
 
     mesh = Poly3DCollection(verts[faces], alpha=.7)
-    face_color = [0.45, 0.45, 0.75]
+    face_color = [0.75, 0.45, 0.45]
     mesh.set_facecolor(face_color)
     ax.add_collection3d(mesh)
 
     ax.set_xlim(0, p.shape[0])
     ax.set_ylim(0, p.shape[1])
     ax.set_zlim(0, p.shape[2])
-
+    
     plt.show()
 
 #produces a binary mask for a lung
@@ -86,20 +88,16 @@ def plot_3d(image):
 def segment_lung_mask(image, fill_lung_structures=True):
     # not actually binary, but 1 and 2. 
     # 0 is treated as background, which we do not want
-    #-700
-    binary_image = np.array(image >= -700, dtype=np.int8)+1
+    # -700
+    binary_image = np.array(image >= -700, dtype=np.int8)+1 
     labels = measure.label(binary_image)
  
     # Pick the pixel in the very corner to determine which label is air
-    # Improvement: Pick multiple background labels from around the patient 
-    # More resistant to “trays” on which the patient lays cutting the air around the person in half 
     background_label = labels[0,0,0]
  
     # Fill the air around the person
-    # air becomes 2 ?
     binary_image[background_label == labels] = 2
 
- 
     # Method of filling the lung structures (that is superior to 
     # something like morphological closing)
     if fill_lung_structures:
@@ -122,31 +120,43 @@ def segment_lung_mask(image, fill_lung_structures=True):
  
     return binary_image
 
+#sort elements based on name in directory 
+def mask_arr(fname):
+    onlyfiles = [f for f in os.listdir(fname)]
+    ans = np.ndarray((len(onlyfiles), 512, 512))
+    i = 0
+    for img in (sorted(onlyfiles)):
+        im = Image.open(fname+img)
+        imarray = numpy.array(im)
+        ans[i] = imarray
+        i = i+1
+    return ans
+
+def show_all(slices):
+    count = 0
+    for slice in slices:
+        plt.figure(count)
+        plt.imshow(slice)
+        count = count + 1
+    plt.show()
+
+def orMask (a,b):
+    l = len(a)
+    ans = np.ndarray((l, 512, 512))
+    for i in range(l):
+        for j in range(512):
+            for k in range(512):
+                ans[i][j][k] = (a[i][j][k] ^ b[i][j][k])
+    return ans
+
+
 def main():
-    path =  '/home/ryan/Desktop/DCM/chest'
+    path =  'Lung_Scan'
+
     patient_dicom = load_scan(path)
     patient_pixels = get_pixels_hu(patient_dicom)
-
-    #plt.imshow(patient_pixels[326], cmap=plt.cm.bone)
-    #plt.show()
-
-    segmented_lungs = segment_lung_mask(patient_pixels, fill_lung_structures=False)    
     segmented_lungs_fill = segment_lung_mask(patient_pixels, fill_lung_structures=True)
-        
-    copied_pixels = copy.deepcopy(patient_pixels)
-    for i, mask in enumerate(segmented_lungs_fill): 
-        #find where not lungs are found
-        get_high_vals = mask == 0
-        copied_pixels[i][get_high_vals] = 0
-    seg_lung_pixels = copied_pixels
-
-    #plt.imshow(seg_lung_pixels[0], cmap=plt.cm.bone)
-    #plt.imshow(seg_lung_pixels[15], cmap=plt.cm.bone)
-    #plt.show()
-
-    #selected_slices = seg_lung_pixels[0]
-    #gk_clustered_imgs = np.array([gk_segment(x) for x in selected_slices])   
-    #plt.imshow(gk_clustered_imgs[0], cmap=plt.cm.bone)
+    
     plot_3d(segmented_lungs_fill)
 
 if __name__ == "__main__":
